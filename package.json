@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "desktop:dev": "electron ./desktop/main.cjs",
+    "setup:local": "npm run prisma:generate && npm run prisma:push && npm run db:seed",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
