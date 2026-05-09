@@ -9,6 +9,7 @@ import { z } from "zod";
 import { ApiKeyStatus, ProviderStatus, prisma } from "@/lib/db";
 import { AdminTab, getAdminTab } from "@/lib/admin-nav";
 import { clearChatHistory, clearConversationHistory, clearConversationMemory } from "@/lib/chat";
+import { importConfigBundle } from "@/lib/config-transfer";
 import { copy, getLang } from "@/lib/i18n";
 import { reminderSettingKeys, runReminderCheck } from "@/lib/reminders";
 
@@ -138,6 +139,10 @@ const conversationMemorySchema = z.object({
 const conversationHistorySchema = z.object({
   conversationId: z.string().trim().min(1),
   conversationSlug: z.string().trim().min(1)
+});
+
+const configImportSchema = z.object({
+  configJson: z.string().trim().min(20)
 });
 
 function maskSecret(secretValue: string) {
@@ -974,6 +979,38 @@ export async function clearConversationHistoryAction(formData: FormData) {
   redirectWithParams(lang, tab, {
     section: "desktop",
     success: text.successConversationHistoryCleared
+  });
+}
+
+export async function importConfigBundleAction(formData: FormData) {
+  const lang = getLang(formData.get("lang")?.toString());
+  const tab = getAdminTab(formData.get("tab")?.toString());
+  const text = copy[lang].admin;
+  const parsed = configImportSchema.safeParse({
+    configJson: formData.get("configJson")
+  });
+
+  if (!parsed.success) {
+    redirectWithParams(lang, tab, {
+      section: "transfer",
+      error: text.errorConfigImportFailed
+    });
+  }
+
+  try {
+    await importConfigBundle(parsed.data.configJson);
+  } catch {
+    redirectWithParams(lang, tab, {
+      section: "transfer",
+      error: text.errorConfigImportFailed
+    });
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/desktop");
+  redirectWithParams(lang, tab, {
+    section: "transfer",
+    success: text.successConfigImported
   });
 }
 

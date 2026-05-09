@@ -8,6 +8,7 @@ import {
   createProviderAction,
   createReminderTaskAction,
   createSkillAction,
+  importConfigBundleAction,
   launchDesktopPetAction,
   restartDesktopPetAction,
   runReminderAction,
@@ -26,6 +27,7 @@ import {
 } from "@/app/admin/actions";
 import { getAdminSnapshot } from "@/lib/admin";
 import { AdminTab, getAdminTab } from "@/lib/admin-nav";
+import { exportConfigBundle } from "@/lib/config-transfer";
 import { formatDateTime } from "@/lib/format";
 import { copy, getLang, localeForLang } from "@/lib/i18n";
 import { getSystemHealth } from "@/lib/system";
@@ -42,7 +44,8 @@ type AdminSection =
   | "runtime"
   | "test"
   | "reminders"
-  | "desktop";
+  | "desktop"
+  | "transfer";
 
 type ReminderHistoryFilter = "all" | "triggered" | "skipped" | "failed";
 type TaskStatusFilter = "all" | "open" | "completed" | "paused";
@@ -124,7 +127,7 @@ function getAdminSection(tab: AdminTab, value: string | string[] | undefined): A
   }
 
   if (tab === "system") {
-    if (raw === "test" || raw === "reminders" || raw === "desktop") {
+    if (raw === "test" || raw === "reminders" || raw === "desktop" || raw === "transfer") {
       return raw;
     }
     return "runtime";
@@ -194,7 +197,12 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   const taskCategoryFilter = readValue(resolvedSearchParams.taskCategory) ?? "all";
   const text = copy[lang];
   const locale = localeForLang(lang);
-  const [health, snapshot] = await Promise.all([getSystemHealth(), getAdminSnapshot()]);
+  const [health, snapshot, configBundle] = await Promise.all([
+    getSystemHealth(),
+    getAdminSnapshot(),
+    exportConfigBundle()
+  ]);
+  const configBundleJson = JSON.stringify(configBundle, null, 2);
   const successMessage = readValue(resolvedSearchParams.success);
   const errorMessage = readValue(resolvedSearchParams.error);
   const testStatus = readValue(resolvedSearchParams.testStatus);
@@ -383,6 +391,12 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               href={buildAdminHref(lang, "system", "desktop")}
             >
               {text.admin.desktopPet}
+            </a>
+            <a
+              className={`tab-chip ${section === "transfer" ? "active" : ""}`}
+              href={buildAdminHref(lang, "system", "transfer")}
+            >
+              {text.admin.configTransfer}
             </a>
           </nav>
         </section>
@@ -1298,7 +1312,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             ) : null}
           </article> : null}
 
-          {section === "reminders" || section === "desktop" ? <article className="panel">
+          {section === "reminders" || section === "desktop" || section === "transfer" ? <article className="panel">
             {section === "reminders" ? (
               <>
             <div className="toolbar-row">
@@ -1619,6 +1633,50 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 </dd>
               </div>
             </dl>
+              </>
+            ) : null}
+            {section === "transfer" ? (
+              <>
+                <div className="section-head">
+                  <h2>{text.admin.configTransfer}</h2>
+                </div>
+                <div className="stack-block info-card">
+                  <p>{text.admin.configTransferHint}</p>
+                  <p>{text.admin.configTransferNote}</p>
+                </div>
+                <div className="section-divider" />
+                <div className="section-head">
+                  <h2>{text.admin.exportConfig}</h2>
+                </div>
+                <div className="stack-block result-card">
+                  <textarea
+                    readOnly
+                    value={configBundleJson}
+                    rows={18}
+                    className="code-textarea"
+                  />
+                </div>
+                <div className="section-divider" />
+                <div className="section-head">
+                  <h2>{text.admin.importConfig}</h2>
+                </div>
+                <form action={importConfigBundleAction} className="admin-form compact-form">
+                  <input type="hidden" name="lang" value={lang} />
+                  <input type="hidden" name="tab" value={tab} />
+                  <label>
+                    <span>{text.admin.importConfig}</span>
+                    <textarea
+                      name="configJson"
+                      rows={14}
+                      placeholder={text.admin.importConfigHint}
+                      className="code-textarea"
+                      required
+                    />
+                  </label>
+                  <button type="submit" className="primary-button">
+                    {text.admin.importConfigButton}
+                  </button>
+                </form>
               </>
             ) : null}
           </article> : null}
