@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProviderStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  DISABLED
+  TESTING
+}
+
+enum ChatMessageRole {
+  USER
+  ASSISTANT
+}
+
+enum ReminderRunStatus {
+  TRIGGERED
+  SKIPPED
+  FAILED
+}
+
+model Provider {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  name        String
+  description String?
+  apiBaseUrl  String?
+  status      ProviderStatus @default(ACTIVE)
+  config      Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  apiKeys     ApiKey[]
+  models      ModelProfile[]
+}
+
+model ApiKey {
+  id          String       @id @default(cuid())
+  providerId  String
+  label       String
+  keyPreview  String?
+  secretValue String
+  status      ApiKeyStatus @default(ACTIVE)
+  isDefault   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, status])
+}
+
+model ModelProfile {
+  id              String   @id @default(cuid())
+  providerId      String
+  slug            String   @unique
+  displayName     String
+  apiModel        String
+  capabilityTags  Json?
+  maxTokens       Int?
+  contextWindow   Int?
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  provider        Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  skills          Skill[]
+
+  @@index([providerId, enabled])
+}
+
+model Skill {
+  id             String       @id @default(cuid())
+  slug           String       @unique
+  name           String
+  description    String
+  systemPrompt   String
+  toolPolicy     Json?
+  memoryPolicy   Json?
+  uiConfig       Json?
+  enabled        Boolean      @default(true)
+  defaultModelId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  defaultModel   ModelProfile? @relation(fields: [defaultModelId], references: [id], onDelete: SetNull)
+  pets           PetProfile[]
+
+  @@index([defaultModelId])
+}
+
+model PetProfile {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  name           String
+  description    String
+  personaPrompt  String?
+  visualConfig   Json?
+  animationSpec  Json?
+  defaultSkillId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  defaultSkill   Skill?   @relation(fields: [defaultSkillId], references: [id], onDelete: SetNull)
+
+  @@index([defaultSkillId])
+}
+
+model Conversation {
+  id        String        @id @default(cuid())
+  slug      String        @unique
+  title     String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
+  reminderRuns ReminderRun[]
+}
+
+model ChatMessage {
+  id             String          @id @default(cuid())
+  conversationId String
+  role           ChatMessageRole
+  content        String         @db.Text
+  skillSlug      String?
+  skillName      String?
+  modelName      String?
+  providerName   String?
+  createdAt      DateTime       @default(now())
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model ReminderRun {
+  id             String            @id @default(cuid())
+  status         ReminderRunStatus
+  reason         String?
+  prompt         String?           @db.Text
+  reply          String?           @db.Text
+  conversationId String?
+  skillSlug      String?
+  skillName      String?
+  modelName      String?
+  providerName   String?
+  createdAt      DateTime          @default(now())
+  conversation   Conversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+model ReminderTask {
+  id             String   @id @default(cuid())
+  title          String
+  notes          String?  @db.Text
+  category       String?
+  priority       String   @default("normal")
+  dueAt          DateTime?
+  active         Boolean  @default(true)
+  completed      Boolean  @default(false)
+  lastRemindedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([active, completed, dueAt])
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
